@@ -1,28 +1,8 @@
-import bunMail, { mailService } from ".";
+import { bunSMTP } from ".";
 
-const service = new mailService({
+const MXA = new bunSMTP({
 	tls: {
-		key: Bun.file(process.env["TLS_KEY"] ?? ""),
-		cert: Bun.file(process.env["TLS_CRT"] ?? "")
+		key: Bun.file(process.env["TLS_KEY"] ?? "/dev/null"),
+		cert: Bun.file(process.env["TLS_CRT"] ?? "/dev/null"),
 	}
 });
-
-service.TransferSMTP.listen(
-	process.env["HOST"] ?? "localhost",
-	process.env["MTA_PORT"] ?? 25,
-);
-
-// service.SubmissionSMTP.listen(
-// 	process.env["HOST"] ?? "localhost",
-// 	process.env["MSA_PORT"] ?? 587,
-// );
-
-// service.pop3.listen(
-// 	process.env["HOST"] ?? "localhost",
-// 	process.env["POP3_PORT"] ?? 995,
-// );
-
-// service.imap.listen(
-// 	process.env["HOST"] ?? "localhost",
-// 	process.env["IMAP_PORT"] ?? 993,
-// );
