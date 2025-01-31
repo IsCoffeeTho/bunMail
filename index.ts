@@ -1,3 +1,3 @@
-import bunSMTP from "./src/SMTP";
+import bunSMTP from "./src/SMTP/SMTP";
 
 export { bunSMTP };
