@@ -1,3 +1,8 @@
-import bunSMTP from "./src/SMTP/SMTP";
+import SMTP from "./src/SMTP/server";
 
-export { bunSMTP };
+export { SMTP };
+
+const bunMail = {
+	SMTP
+};
+export default bunMail;

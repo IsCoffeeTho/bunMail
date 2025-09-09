@@ -1,67 +1,66 @@
-import { Socket } from "bun";
-import bunSMTP, { SMTPServerAgentHandlers } from "./SMTP";
-import { envelope } from "./envelope";
-import { EventEmitter } from "events";
+import { Socket, TLSUpgradeOptions } from "bun";
+import { SMTPOptions } from "./server";
+import { ReplyCode_std_reply, SMTPReplyCode } from "./constants";
 
 export enum SMTPState {
-	welcoming,
-	welcome,
-	envelope,
-	
-};
+	UNINITIATED,
+	DATA,
+}
 
-const SMTPReplyCodeLUT: {[_:number]:string} = {
-	211: "Status not implemented",
-	214: "Help not implemented",
-	220: "Service Ready",
-	221: "Service closing transmission channel",
-	250: "OK",
-	251: "User not local",
-	252: "Cannot VRFY user, but will accept message and attempt delivery",
-	354: "Start mail input; end with <CRLF>.<CRLF>",
-	421: "Service Not available; closing transmission channel",
-	450: "Requested mail action not taken: mailbox unavailable",
-	451: "Requested action aborted: local error in processing",
-	452: "Requested action not taken: insufficient system storage",
-	455: "Server unable to accommodate parameters",
-	500: "Syntax Error, command unrecognized",
-	501: "Syntax Error in paramters or arguments",
-	502: "Command not implemented",
-	503: "Bad Sequence of commandss",
-	504: "Command parameter not implemented",
-	550: "Requested action not taken: mailbox unavailable",
-	551: "User not local; please send message to other server",
-	552: "Requested mail action aborted: exceeded storage allocation",
-	553: "Requested action not taken: mailbox name not allowed",
-	554: "Transaction failed",
-	555: "MAIL FROM/RCPT TO parameters not recognized or not implemented"
-};
+export default class agent<T> {
+	#connection: Socket<this>;
+	#opt: SMTPOptions<this>;
+	#upgrade: TLSUpgradeOptions<this>;
+	#secured = false;
 
-export default class SMTPAgent<user_type = any> {
-	envelope: envelope = {
-		from: {
-			name: "",
-			address: ""
-		},
-		to: [],
-		subject: ""
-	};
-	user?: user_type;
-	_command: ((command: string[]) => any) = (_) => {};
+	state: SMTPState = SMTPState.UNINITIATED;
 	
-	state: SMTPState = SMTPState.welcoming;
-	
-	#socket: Socket<SMTPAgent<user_type>>;
-	constructor(agentHandler: SMTPServerAgentHandlers<user_type>, socket: Socket<SMTPAgent<user_type>>) {
-		this.#socket = socket;
+	forwardPath?: string;
+	constructor(
+		opt: SMTPOptions<T>,
+		connection: Socket<agent<T>>,
+		upgradeInfo: TLSUpgradeOptions<agent<T>>,
+	) {
+		this.#opt = opt;
+		this.#connection = <Socket<this>>connection;
+		this.#upgrade = <TLSUpgradeOptions<this>>upgradeInfo;
 	}
-	
-	reply(code: number, message?:string, ...lines:string[]) {
-		if (!message)
-			message = (SMTPReplyCodeLUT[code]) ?? "Custom Reply";
-		lines.unshift(message);
-		return lines.flatMap((v, i, a) => {
-			return `${code.toString().padStart(3, "000")}${(i < (a.length - 1) ? '-' : ' ')}${v}`
-		})
+
+	send(code: SMTPReplyCode, ...message: string[]) {
+		if (message.length == 0)
+			message = [
+				(ReplyCode_std_reply[code] ?? "Custom reply code").replace(
+					/\{\{domain\}\}/g,
+					this.#opt.domain ?? process.env['HOSTNAME'] ?? "localhost"
+				).replace(
+					/\{\{forwardPath\}\}/g,
+					this.forwardPath ?? "<forward-path>"
+				),
+			];
+
+		message = message.map((v) => v.split("\n")).flat();
+
+		message = message.map((v, i, a) => {
+			if (a.length - 1 == i) return `${code} ${v}`;
+			return `${code}-${v}`;
+		});
+
+		this.#connection.write(`${message.join("\r\n")}\r\n`);
+	}
+
+	acceptData() {
+		// if (this.state != ) // pre DATA state check
+		this.state = SMTPState.DATA;
+		this.send(SMTPReplyCode.StartMessage);
+	}
+
+	startTls() {
+		if (this.#secured)
+			throw new Error("Connection tried to double up on TLS connection");
+		this.#connection = <Socket<this>>(
+			this.#connection.upgradeTLS(this.#upgrade)[1]
+		);
+		this.#secured = true;
+		this.state = SMTPState.UNINITIATED;
 	}
 }

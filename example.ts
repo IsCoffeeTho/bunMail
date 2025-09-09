@@ -1,27 +1,22 @@
-import { bunSMTP } from ".";
+import bunMail from ".";
 
 type user = {};
 
-const MSA = bunSMTP<user>({
-	host: process.env["MXA_HOST"] ?? "127.0.0.1",
+const MSA = bunMail.SMTP<user>({
+	hostname: process.env["MXA_HOST"] ?? "127.0.0.1",
 	port: parseInt(process.env["MXA_PORT"] ?? "1587"),
+	domain: "smtp.localhost",
 	tls: {
 		key: Bun.file(process.env["TLS_KEY"] ?? "/dev/null"),
 		cert: Bun.file(process.env["TLS_CRT"] ?? "/dev/null"),
 	},
 	agent: {
-		onConnect(agent) {
-			console.log("Connection");
-		},
-		onRecipient(agent, recipient) {
-			recipient.reject();
-		},
-		onVerify(agent, inbox) {
-			return;
-		},
-		onExpand(agent, group) {
+		open(agent) {
 			
-		}
+		},
+		command(agent, command) {
+			
+		},
 	}
 });
 
