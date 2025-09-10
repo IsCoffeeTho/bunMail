@@ -4,6 +4,7 @@ import { ReplyCode_std_reply, SMTPReplyCode } from "./constants";
 
 export enum SMTPState {
 	UNINITIATED,
+	INITIATED,
 	DATA,
 }
 
@@ -57,6 +58,8 @@ export default class agent<T> {
 	startTls() {
 		if (this.#secured)
 			throw new Error("Connection tried to double up on TLS connection");
+		if (this.state != SMTPState.UNINITIATED)
+			this.send(SMTPReplyCode.ServiceReady, "START TLS, see you on the other side");
 		this.#connection = <Socket<this>>(
 			this.#connection.upgradeTLS(this.#upgrade)[1]
 		);

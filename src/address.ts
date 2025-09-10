@@ -14,6 +14,10 @@ export class Address {
 		this.localpart = <string>a;
 		this.domain = <string>b;
 	}
+	
+	equals(other: Address) {
+		return (this.localpart == other.localpart) && (this.domain == other.domain);
+	}
 }
 
 Address.prototype.toString = function () {

@@ -16,6 +16,10 @@ export class MsgID {
 		this.UID = <string>a;
 		this.domain = <string>b;
 	}
+	
+	equals(other: MsgID) {
+		return (this.UID == other.UID) && (this.domain == other.domain);
+	}
 }
 
 MsgID.prototype.toString = function () {

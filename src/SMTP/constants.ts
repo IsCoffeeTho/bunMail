@@ -5,6 +5,7 @@ export enum SMTPReplyCode {
 	ServiceReady = 220,
 	ServiceClosing = 221,
 	ActionCompleted = 250,
+	OK = ActionCompleted,
 	WarnUserNotLocal = 251,
 	CannotVFRYuser = 252,
 	

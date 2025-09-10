@@ -1,10 +1,12 @@
 import bunMail from ".";
+import { SMTPState } from "./src/SMTP/agent";
+import { SMTPReplyCode } from "./src/SMTP/constants";
 
 type user = {};
 
 const MSA = bunMail.SMTP<user>({
 	hostname: process.env["MXA_HOST"] ?? "127.0.0.1",
-	port: parseInt(process.env["MXA_PORT"] ?? "1587"),
+	port: parseInt(process.env["MXA_PORT"] ?? "1465"),
 	domain: "smtp.localhost",
 	tls: {
 		key: Bun.file(process.env["TLS_KEY"] ?? "/dev/null"),
@@ -12,11 +14,24 @@ const MSA = bunMail.SMTP<user>({
 	},
 	agent: {
 		open(agent) {
-			
+			agent.startTls(); // implicit TLS
 		},
 		command(agent, command) {
-			
+			console.log(command);
+			switch (command.at(0)) {
+				case "HELO":
+				case "EHLO":
+					agent.state = SMTPState.INITIATED;
+					agent.send(SMTPReplyCode.OK);
+					break;
+				default:
+					agent.send(SMTPReplyCode.CommandUnrecognized);
+					break;
+			}
 		},
+		message(agent, envelope) {
+			
+		}
 	}
 });
 
