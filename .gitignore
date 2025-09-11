@@ -3,3 +3,6 @@
 bun.lock*
 
 node_modules
+
+*.crt
+*.key

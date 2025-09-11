@@ -7,14 +7,15 @@ type user = {};
 const MSA = bunMail.SMTP<user>({
 	hostname: process.env["MXA_HOST"] ?? "127.0.0.1",
 	port: parseInt(process.env["MXA_PORT"] ?? "1465"),
-	domain: "smtp.localhost",
+	domain: process.env["DOMAIN"] ?? process.env["HOSTNAME"] ?? "smtp.localhost",
 	tls: {
 		key: Bun.file(process.env["TLS_KEY"] ?? "/dev/null"),
 		cert: Bun.file(process.env["TLS_CRT"] ?? "/dev/null"),
+		implicit: true,
 	},
 	agent: {
 		open(agent) {
-			agent.startTls(); // implicit TLS
+			
 		},
 		command(agent, command) {
 			console.log(command);
