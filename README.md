@@ -1,3 +1,3 @@
-# bunMail
+# mailts
 
-A bun library that provides simple APIs to use SMTP, IMAP and POP3.
+A typescript library that supplies servers and clients for LMTP (Local SMTP Extended), POP3 and IMAPs.
