@@ -1,0 +1,18 @@
+tag-template: 'v$RESOLVED_VERSION'
+change-template: '- (#$NUMBER) @$AUTHOR : $TITLE'
+categories:
+  - title: 'Additions'
+    labels:
+      - 'addition'
+  - title: '🔧 Patches'
+    labels:
+      - 'bug'
+  - title: '📃 Documentation'
+    label:
+      - 'documentation'
+template: |
+  [View on **`npm`**](https://www.npmjs.com/package/$REPOSITORY/v/$RESOLVED_VERSION)
+  <!-- Before publishing: read and replace the version numbers to the correct one -->
+  ## CHANGELOG
+  
+  $CHANGES
