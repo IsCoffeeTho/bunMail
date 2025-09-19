@@ -1,0 +1,39 @@
+name: Release Update
+
+on:
+  release:
+    types: [published, edited]
+
+concurrency:
+  group: wiki
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+          registry-url: https://registry.npmjs.org/
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  update-wiki:
+    runs-on: ubuntu-latest
+    name: Update wiki
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bunx typedoc 
+      - uses: Andrew-Chen-Wang/github-wiki-action@v4
+        name: Wiki Push
+        with:
+          path: "./wiki"
+          token: ${{ secrets.GITHUB_TOKEN }}

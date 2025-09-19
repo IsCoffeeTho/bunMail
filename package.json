@@ -5,12 +5,31 @@
 	"type": "module",
 	"scripts": {
 		"start": "bun run example.ts",
-		"encrypt": "openssl req -x509 -out localhost.crt -keyout localhost.key -newkey rsa:2048 -nodes -sha256 -subj '/CN=localhost' -extensions EXT -config <( printf '[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\\n[EXT]\\nsubjectAltName=DNS:localhost\\nkeyUsage=digitalSignature\\nextendedKeyUsage=serverAuth')"
+		"encrypt": "rm *.key; rm *.crt; openssl req -x509 -out localhost.crt -keyout localhost.key -newkey rsa:2048 -nodes -sha256 -subj '/CN=localhost' -extensions EXT -config <( printf '[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\\n[EXT]\\nsubjectAltName=DNS:localhost\\nkeyUsage=digitalSignature\\nextendedKeyUsage=serverAuth')"
 	},
 	"devDependencies": {
 		"@types/bun": "latest"
 	},
 	"peerDependencies": {
 		"typescript": "^5.9.2"
-	}
+	},
+	"contributors": [
+		{
+			"email": "aaron.menadue@gmail.com",
+			"name": "Aaron \"IsCoffeeTho\" Menadue",
+			"url": "https://github.com/IsCoffeeTho"
+		}
+	],
+	"homepage": "https://github.com/IsCoffeeTho/mailts",
+	"keywords": [
+		"bun",
+		"SMTP",
+		"ESMTP",
+		"LMTP",
+		"IMAP",
+		"POP3",
+		"mail",
+		"email",
+		"typescript"
+	]
 }

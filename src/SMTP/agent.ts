@@ -1,5 +1,5 @@
 import { Socket, TLSUpgradeOptions } from "bun";
-import { SMTPOptions } from "./server";
+import { SMTPListenerOptions } from "./server";
 import { ReplyCode_std_reply, SMTPReplyCode } from "./constants";
 
 export enum SMTPState {
@@ -11,10 +11,10 @@ export enum SMTPState {
 
 export default class agent<T> {
 	#connection: Socket<this>;
-	#opt: SMTPOptions<this>;
+	#opt: SMTPListenerOptions<this>;
 	#upgrade: TLSUpgradeOptions<this>;
 	#secured = false;
-	
+
 	get secured() {
 		return this.#secured;
 	}
@@ -23,7 +23,7 @@ export default class agent<T> {
 
 	forwardPath?: string;
 	constructor(
-		opt: SMTPOptions<T>,
+		opt: SMTPListenerOptions<T>,
 		connection: Socket<agent<T>>,
 		upgradeInfo: TLSUpgradeOptions<agent<T>>,
 	) {
@@ -31,9 +31,7 @@ export default class agent<T> {
 		this.#connection = <Socket<this>>connection;
 		this.#upgrade = <TLSUpgradeOptions<this>>upgradeInfo;
 
-		if (opt.tls?.implicit)
-			if (!this.#upgradeTLS())
-				throw new Error("Failed to encrypt socket");
+		if (opt.tls?.implicit) this.#upgradeTLS();
 	}
 
 	send(code: SMTPReplyCode, ...message: string[]) {
@@ -42,7 +40,7 @@ export default class agent<T> {
 				(ReplyCode_std_reply[code] ?? "Custom reply code")
 					.replace(
 						/\{\{domain\}\}/g,
-						this.#opt.domain ??
+						this.#opt.name ??
 							process.env["HOSTNAME"] ??
 							"localhost",
 					)
@@ -68,24 +66,26 @@ export default class agent<T> {
 		this.send(SMTPReplyCode.StartMessage);
 	}
 
-	startTls(message = "START TLS; see you on the other side.") {
+	async startTls(message = "START TLS; see you on the other side") {
 		if (this.#secured)
-			throw new Error("Connection tried to double up on TLS connection");
+			throw new Error("Cannot STARTTLS on encrypted connection");
 		this.send(SMTPReplyCode.ActionCompleted, message);
-		if (!this.#upgradeTLS())
+		if (!(await this.#upgradeTLS()))
 			throw new Error("Socket failed to START TLS");
-		this.state = SMTPState.UNINITIATED;
+		// this.state = SMTPState.UNINITIATED;
 		return true;
 	}
 
-	#upgradeTLS() {
+	async #upgradeTLS() {
 		if (this.#secured)
 			throw new Error("Connection tried to double up on TLS connection");
 		this.state = SMTPState.ENCRYPTING;
 		var [cleartext, encrypted] = this.#connection.upgradeTLS(this.#upgrade);
-		if (!encrypted) return false;
-		this.#connection = <Socket<this>>encrypted;
-		this.#secured = true;
+		if (encrypted) {
+			encrypted.data = this;
+			this.#connection = <Socket<this>>encrypted;
+			this.#secured = true;
+		}
 		return this.#secured;
 	}
 }
