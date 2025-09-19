@@ -1,109 +1,105 @@
-import { SocketHandler, TLSOptions, Socket } from "bun";
+import { TLSOptions } from "bun";
 import agent, { SMTPState } from "./agent";
 import { SMTPReplyCode } from "./constants";
 
-export type SMTPOptions<T> = {
+export type SMTPListenerOptions<T> = {
 	hostname: string;
 	port: number;
-	domain: string;
+	name: string;
 	tls?: TLSOptions & {
-		implicit: boolean
+		implicit: boolean;
 	};
 	agent: {
-		open(agent: agent<T>): any;
+		open?(agent: agent<T>): any;
 		command(agent: agent<T>, command: string[]): any;
 		message(agent: agent<T>, message: Buffer): any;
-		error?(agent: agent<T>, error: any): any;
+		close?(agent: agent<T>, error?: Error): any;
+		error?(agent: agent<T>, error: Error): any;
 	};
 };
 
-export default function serve<T>(opt: SMTPOptions<T>) {
-	
-	var encryptedHandler: SocketHandler<agent<T>> = {
-		open(socket: Socket<agent<T>>) {
-			try {
-				console.log(socket.data);
-				socket.data.send(SMTPReplyCode.ServiceReady, "{{domain}} Service Available.");
-				opt.agent.open(socket.data);
-			} catch (err: any) {
-				;
-			}
-		},
-		async data(socket: Socket<agent<T>>, data: Buffer) {
-			var _agent = socket.data;
-			try {
-				console.log(data);
-				return;
-				if (_agent.state == SMTPState.DATA) {
-					return;
-				}
-				var packet = data.toString();
-				if (!packet.endsWith('\r\n'))
-					return _agent.send(SMTPReplyCode.CommandUnrecognized, "Syntax Error, end packets with <CRLF>");
-				
-				var args = packet.slice(0, -2).split(" ");
-				var command = args.shift();
-				
-				if (!command)
-					return _agent.send(SMTPReplyCode.CommandUnrecognized, "Syntax Error, missing command");
-				
-				await opt.agent.command(_agent, [command.toUpperCase(), ...args]);
-				
-			} catch (err: any) {
-				if (opt.agent.error)
-					await opt.agent.error(_agent, err);
-			}
-			
-		},
-		close(socket: Socket<agent<T>>) {
-			
+export interface SMTPListener<T> {
+	readonly port: number;
+	readonly hostname: string;
+	stop(closeActiveConnections?: boolean): void;
+	ref(): void;
+	unref(): void;
+}
+
+export default function serve<T = unknown>(
+	opt: SMTPListenerOptions<T>,
+): SMTPListener<T> {
+	async function handleData(agent: agent<T>, buffer: Buffer) {
+		if (agent.state == SMTPState.DATA) {
+			await opt.agent.message(agent, buffer);
+			return;
 		}
-	};
-	
-	return Bun.listen<agent<T>>({
+		var command = buffer.toString().split(" ");
+		command[0] = command[0].toUpperCase();
+		await opt.agent.command(agent, command);
+	}
+
+	var listener = Bun.listen<agent<T>>({
 		hostname: opt.hostname,
 		port: opt.port,
 		socket: {
-			open(socket: Socket<agent<T>>) {
-				try {
-					socket.data = new agent<T>(opt, socket, { tls: <TLSOptions>(opt.tls), socket: encryptedHandler });
-					if (socket.data.secured)
-						return;
-					socket.data.send(SMTPReplyCode.ServiceReady, "{{domain}} Service Available.");
-					opt.agent.open(socket.data);
-				} catch (err: any) {
-					err
-				}
+			async open(socket) {
+				var _agent = new agent<T>(opt, socket, {
+					tls: <TLSOptions>opt.tls,
+					socket: {
+						async open(socket) {
+							socket.data = _agent;
+							_agent.state = SMTPState.UNINITIATED;
+							if (opt.agent.open) await opt.agent.open(_agent);
+						},
+						async data(socket, data) {
+							await handleData(socket.data, data);
+						},
+						async close(socket, err) {
+							if (opt.agent.close)
+								await opt.agent.close(socket.data, err);
+						},
+						async error(socket, err) {
+							if (opt.agent.error)
+								await opt.agent.error(socket.data, err);
+						},
+					},
+				});
+				socket.data = _agent;
+				if (opt.tls?.implicit)
+					return
+					
+				if (opt.agent.open) await opt.agent.open(socket.data);
 			},
-			async data(socket: Socket<agent<T>>, data: Buffer) {
-				if (socket.data.secured)
-					return;
-				var _agent = socket.data;
-				try {
-					if (_agent.state == SMTPState.DATA) {
-						return;
-					}
-					var packet = data.toString();
-					if (!packet.endsWith('\r\n'))
-						return _agent.send(SMTPReplyCode.CommandUnrecognized, "Syntax Error, end packets with <CRLF>");
-					
-					var args = packet.slice(0, -2).split(" ");
-					var command = args.shift();
-					
-					if (!command)
-						return _agent.send(SMTPReplyCode.CommandUnrecognized, "Syntax Error, missing command");
-					
-					await opt.agent.command(_agent, [command.toUpperCase(), ...args]);
-					
-				} catch (err: any) {
-					if (opt.agent.error)
-						await opt.agent.error(_agent, err);
-				}
-				
+			async data(socket, data) {
+				console.log(socket.data ? "Agent Present" : "No Agent");
+				console.log(data);
+				var agent = socket.data;
+				if (!agent) return;
+				if (agent.secured) return;
+				if (agent.state == SMTPState.ENCRYPTING) return;
+				await handleData(agent, data);
 			},
-			close(socket: Socket<agent<T>>) {
-				
-			}
-		}
+			async close(socket, err) {
+				if (opt.agent.close) await opt.agent.close(socket.data, err);
+			},
+			async error(socket, err) {
+				if (opt.agent.error) await opt.agent.error(socket.data, err);
+			},
+		},
 	});
+
+	return {
+		hostname: opt.hostname,
+		port: opt.port,
+		stop(closeActiveConnections = false) {
+			return listener.stop(closeActiveConnections);
+		},
+		ref() {
+			listener.ref();
+		},
+		unref() {
+			listener.unref();
+		},
+	};
 }
